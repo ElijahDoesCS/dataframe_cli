@@ -9,12 +9,12 @@ import re
 
 def process_input(args):
 
-    print(f'Processing file: {args.filename}')
-
     # Maximum or specified
     file = args.filename    
     rows = args.yrange #if args.yrange else "full"
     columns = args.xrange #if args.xrange else "full"
+    
+    print(f'Processing file: {args.filename}')
 
     # Check if the file exists
     if not os.path.isfile(args.filename):
@@ -25,33 +25,60 @@ def process_input(args):
     def validate_index(index):
         # Check if "full" is passed, case insensitive
         if index.lower() == "full":
-            return index.lower()
+            return "full"
 
         # Regex to match the "NUMBERtoNUMBER" format
-        match = re.fullmatch(r"\d+to\d+", index)
+        match = re.fullmatch(r"(\d+)to(\d+)", index)
         if match:
-            return index  # Return as-is if valid
+            # Extract starting and ending numbers and return them as a tuple of integers
+            start_num = str(match.group(1))
+            end_num = str(match.group(2))
+            return (start_num, end_num)
 
         # Raise an error if the input does not match any valid format
         raise ValueError(f"Invalid index format '{index}'. Expected 'NUMBERtoNUMBER' or 'full'.")
+        
+    rows_starting_index = None
+    rows_ending_index = None
+    columns_starting_index = None
+    columns_ending_index = None
 
-    validate_index(rows)
-    validate_index(columns)
+    # Assume full if not provided
+    if (not rows):
+        rows = "full"
+    if (not columns):
+        columns = "full"
 
-    # Prepare arguments to pass to the C function
+    if (validate_index(rows) == "full"):
+        rows_starting_index = "full"
+        rows_ending_index = "full"
+    else: 
+        # Grab the values from the tuple
+        rows_starting_index, rows_ending_index = validate_index(rows)[:2]
+
+    if (validate_index(columns) == "full"):
+        columns_starting_index = "full"
+        columns_ending_index = "full"
+    else:
+        # Grab the values from the tuple
+        columns_starting_index, columns_ending_index = validate_index(columns)[:2]
+
+    # Encode the values in preperation for shared library
+    rows_starting_index = rows_starting_index.encode('utf-8')
+    rows_ending_index = rows_ending_index.encode('utf-8')
+    columns_starting_index = columns_starting_index.encode('utf-8')
+    columns_ending_index = columns_ending_index.encode('utf-8')
     file = file.encode('utf-8')
-    rows = rows.encode('utf-8')
-    columns = columns.encode('utf-8')
-
-
 
     # Load the C library and define argument types
     matrix_lib = ctypes.CDLL('./shared_libraries/matrix_lib.so')
-    matrix_lib.load_data.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
+    matrix_lib.load_data.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,]
     matrix_lib.load_data.restype = ctypes.c_int
 
-    # Call the C function that preparse the data for operation
-    result = matrix_lib.load_data(file, rows, columns)
+    # Call the C function that prepares the data for operation
+    result = matrix_lib.load_data(file, rows_starting_index, rows_ending_index, columns_starting_index, columns_ending_index)
+    
+    # Later result will be compiled matrix for operation
     print("Failure status:", result)
 
     operations = 0
@@ -79,7 +106,7 @@ def process_input(args):
         operations |= STDDEV_FLAG
 
     # Returns result of stat operation from shared library
-    return "Successfully completed operation from shared library"
+    return "Completed operation from shared library." if result == 0 else "Operation exited with erorr."
 
 def main():
     # Create the main parser
