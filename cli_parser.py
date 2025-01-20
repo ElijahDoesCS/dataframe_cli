@@ -28,46 +28,42 @@ def process_input(args):
             return "full"
 
         # Regex to match the "NUMBERtoNUMBER" format
-        match = re.fullmatch(r"(\d+)to(\d+)", index)
+        match = re.fullmatch(r"(\w+)to(\w+)", index)
         if match:
             # Extract starting and ending numbers and return them as a tuple of integers
-            start_num = str(match.group(1))
-            end_num = str(match.group(2))
-            return (start_num, end_num)
-
-        # Raise an error if the input does not match any valid format
-        raise ValueError(f"Invalid index format '{index}'. Expected 'NUMBERtoNUMBER' or 'full'.")
+            start_header = str(match.group(1))
+            end_header = str(match.group(2))
+            return (start_header, end_header)
+        else:
+            start_header = index
+            end_header = "full"
+            return (start_header, end_header)
         
-    rows_starting_index = None
-    rows_ending_index = None
-    columns_starting_index = None
-    columns_ending_index = None
+    rows_starting_header = None
+    rows_ending_header = None
+    columns_starting_header = None
+    columns_ending_header = None
 
     # Assume full if not provided
-    if (not rows):
-        rows = "full"
-    if (not columns):
-        columns = "full"
-
-    if (validate_index(rows) == "full"):
-        rows_starting_index = "full"
-        rows_ending_index = "full"
+    if (validate_index(rows) == "full" or not rows):
+        rows_starting_header = "full"
+        rows_ending_header = "full"
     else: 
         # Grab the values from the tuple
-        rows_starting_index, rows_ending_index = validate_index(rows)[:2]
+        rows_starting_header, rows_ending_header = validate_index(rows)[:2]
 
-    if (validate_index(columns) == "full"):
-        columns_starting_index = "full"
-        columns_ending_index = "full"
+    if (validate_index(columns) == "full" or not columns):
+        columns_starting_header = "full"
+        columns_ending_header = "full"
     else:
         # Grab the values from the tuple
-        columns_starting_index, columns_ending_index = validate_index(columns)[:2]
+        columns_starting_header, columns_ending_header = validate_index(columns)[:2]
 
     # Encode the values in preperation for shared library
-    rows_starting_index = rows_starting_index.encode('utf-8')
-    rows_ending_index = rows_ending_index.encode('utf-8')
-    columns_starting_index = columns_starting_index.encode('utf-8')
-    columns_ending_index = columns_ending_index.encode('utf-8')
+    rows_starting_header = rows_starting_header.encode('utf-8')
+    rows_ending_header = rows_ending_header.encode('utf-8')
+    columns_starting_header = columns_starting_header.encode('utf-8')
+    columns_ending_header = columns_ending_header.encode('utf-8')
     file = file.encode('utf-8')
 
     # Load the C library and define argument types
@@ -76,7 +72,7 @@ def process_input(args):
     matrix_lib.load_data.restype = ctypes.c_int
 
     # Call the C function that prepares the data for operation
-    result = matrix_lib.load_data(file, rows_starting_index, rows_ending_index, columns_starting_index, columns_ending_index)
+    result = matrix_lib.load_data(file, rows_starting_header, rows_ending_header, columns_starting_header, columns_ending_header)
     
     # Later result will be compiled matrix for operation
     print("Failure status:", result)
@@ -106,7 +102,7 @@ def process_input(args):
         operations |= STDDEV_FLAG
 
     # Returns result of stat operation from shared library
-    return "Completed operation from shared library." if result == 0 else "Operation exited with erorr."
+    return "Completed operation from shared library." if result == 0 else "Operation exited with error."
 
 def main():
     # Create the main parser

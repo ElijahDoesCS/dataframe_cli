@@ -17,9 +17,7 @@ SHARED_LIB_SOURCE="./data_preperation/matrix_lib.c"
 PYTHON_SCRIPT="./cli_parser.py"
 
 # Step 1: Compile the shared library
-echo "Compiling the shared library..."
 gcc -shared -fPIC -o "$SHARED_LIB_DIR/$SHARED_LIB_NAME" "$SHARED_LIB_SOURCE" -lpthread
 
 # Step 2: Run the Python script with the passed arguments
-echo "Running the Python script..."
 python3 "$PYTHON_SCRIPT" "$@"
