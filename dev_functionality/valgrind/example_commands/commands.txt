@@ -1,0 +1,5 @@
+./dataframes/example.csv bcms full poll poll
+./dataframes/example2.csv 8 OkiLAN full full
+./dataframes/example3.csv NetSurvibox full 6 10
+./dataframes/example4.csv write 3ascotel write e500changeme
+./dataframes/example5.csv 2 draadloos 9 full

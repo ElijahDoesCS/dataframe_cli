@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.py": "python",
+        "test_hook.C": "cpp"
+    }
+}

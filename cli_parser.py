@@ -13,7 +13,11 @@ def process_input(args):
     file = args.filename    
     rows = args.yrange #if args.yrange else "full"
     columns = args.xrange #if args.xrange else "full"
-    
+
+    if not file:
+        print("Error: No filename provided.")
+        exit(1)
+
     print(f'Processing file: {args.filename}')
 
     # Check if the file exists
@@ -45,14 +49,14 @@ def process_input(args):
     columns_ending_header = None
 
     # Assume full if not provided
-    if (validate_index(rows) == "full" or not rows):
+    if (not rows or validate_index(rows) == "full"):
         rows_starting_header = "full"
         rows_ending_header = "full"
     else: 
         # Grab the values from the tuple
         rows_starting_header, rows_ending_header = validate_index(rows)[:2]
 
-    if (validate_index(columns) == "full" or not columns):
+    if (not columns or validate_index(columns) == "full"):
         columns_starting_header = "full"
         columns_ending_header = "full"
     else:
@@ -67,15 +71,9 @@ def process_input(args):
     file = file.encode('utf-8')
 
     # Load the C library and define argument types
-    matrix_lib = ctypes.CDLL('./shared_libraries/matrix_lib.so')
-    matrix_lib.load_data.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,]
+    matrix_lib = ctypes.CDLL('./shared_libraries/libmatrix_lib.so')
+    matrix_lib.load_data.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_short]
     matrix_lib.load_data.restype = ctypes.c_int
-
-    # Call the C function that prepares the data for operation
-    result = matrix_lib.load_data(file, rows_starting_header, rows_ending_header, columns_starting_header, columns_ending_header)
-    
-    # Later result will be compiled matrix for operation
-    print("Failure status:", result)
 
     operations = 0
 
@@ -100,6 +98,9 @@ def process_input(args):
         operations |= MODE_FLAG
     if args.stddev:
         operations |= STDDEV_FLAG
+
+    # Call the C function that prepares the data for operation
+    result = matrix_lib.load_data(file, rows_starting_header, rows_ending_header, columns_starting_header, columns_ending_header, operations)
 
     # Returns result of stat operation from shared library
     return "Completed operation from shared library." if result == 0 else "Operation exited with error."
