@@ -7,7 +7,7 @@
 #include <limits.h>
 #include <stdint.h>
 
-#include "../arithmetic_lib/fat_data.h"
+#include "../arithmetic_lib/fat_data/fat_data.h"
 #include "./marshaller/marshaller.h"
 
 #define BUFFER_INCREMENT 64
@@ -333,8 +333,7 @@ char **tokenize_file_contents(const char *file_name,
     if (!line) {
         perror("Memory allocation failed");
         fclose(spreadsheet_fp);
-        // Values is null at this point
-        // free_matrix(values, values_size);
+        
         return NULL;
     }
 
@@ -425,11 +424,12 @@ char **tokenize_file_contents(const char *file_name,
 __attribute__((visibility("default"))) int load_data(const char *file_name,
     const char *starting_row, const char *ending_row, 
     const char *starting_column, const char *ending_column,
-    short operations) {
+    int operations,
+    int thread_count) {
 
     // Variables to store integer or string interpretations
-    int starting_row_int = 0, ending_row_int = 0;
-    int starting_column_int = 0, ending_column_int = 0;
+    int starting_row_int = -1, ending_row_int = -1;
+    int starting_column_int = -1, ending_column_int = -1;
 
     char *starting_row_string = NULL, *ending_row_string = NULL;
     char *starting_column_string = NULL, *ending_column_string = NULL;
@@ -439,21 +439,21 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
             char *endptr = NULL;                                              \
             errno = 0;                                                        \
             long val = strtol((input), &endptr, 10);                          \
-            if (errno == 0 && endptr != input && *endptr == '\0' &&          \
-                val >= INT_MIN && val <= INT_MAX) {                          \
+            if (errno == 0 && endptr != input && *endptr == '\0' &&           \
+                val >= INT_MIN && val <= INT_MAX) {                           \
                 (output_int) = (int)(val - 1);                                \
             } else {                                                          \
-                (output_string) = SAFE_STRNDUP(input);                            \
+                (output_string) = SAFE_STRNDUP(input);                        \
             }                                                                 \
         } while (0)
 
-    // Validate requested bounds & obtain header indeces
+    // Store header indeces in integer structure
     CONVERT_IF_NUMERIC(starting_row, starting_row_int, starting_row_string);
     CONVERT_IF_NUMERIC(ending_row, ending_row_int, ending_row_string);
     CONVERT_IF_NUMERIC(starting_column, starting_column_int, starting_column_string);
     CONVERT_IF_NUMERIC(ending_column, ending_column_int, ending_column_string);
 
-    // Populate the header_strings structure
+    // Populate strings for header search
     header_strings header_strings = {
         .starting_row = starting_row_string,
         .ending_row= ending_row_string,
@@ -461,7 +461,7 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         .ending_column = ending_column_string
     };
 
-    // Populate the header_integers structure
+    // Populate the header_integers structure for subregion buildout
     header_integers header_integers = {
         .starting_row = (header_strings.starting_row) ? -1 : starting_row_int,
         .ending_row = (header_strings.ending_row) ? -1 : ending_row_int,
@@ -469,7 +469,11 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         .ending_column = (header_strings.ending_column) ? -1 : ending_column_int
     };
 
-    // Hold spreadsheet data, get dimensions and num tokens, validate data width consistency
+    /*
+    Hold data, get dimensions, number of values, and validate width consistency across rows
+    Populate the header_integers structure with retrieved headers
+    */ 
+
     int data_width = 0, num_lines = 0, values_size = 0; // Num columns, num rows, num tokens
     char **values = tokenize_file_contents(file_name, header_strings, &header_integers, 
                                           &data_width, &num_lines, &values_size);
@@ -478,26 +482,152 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         
         // Free allocated memory for header strings
         free_header_strings(&header_strings);
+        
         return 1;
     }
-
-    // Set dimensions if requested bounds are full 
-    if (header_strings.starting_row) header_integers.starting_row = strcmp("full", header_strings.starting_row) == 0 ? 0 : -1;
-    if (header_strings.ending_row) header_integers.ending_row = strcmp("full", header_strings.ending_row) == 0 ? num_lines - 1 : -1;
-    if (header_strings.starting_column) header_integers.starting_column = strcmp("full", header_strings.starting_column) == 0 ? 0 : -1;
-    if (header_strings.ending_column) header_integers.ending_column = strcmp("full", header_strings.ending_column) == 0 ? data_width - 1 : -1;
 
      // Verify spreadsheet dimensions
     if (data_width < 2 || num_lines < 2) {
         free_matrix(values, values_size);
         free_header_strings(&header_strings);
 
-        fprintf(stderr, "Error: Expects 2 by 2 dimensions in CSV file.\n");
+        fprintf(stderr, "Error: Expects >=2 by >=2 dimensions in CSV file.\n");
         fprintf(stderr, "Dimensions (height by width): %d by %d\n", num_lines, data_width);
         fprintf(stderr, "File format error detected.\n");
         
         return 1;
     }
+
+    /*
+    Reject inputs that have mixed headers, i.e. numbers in column headers, 
+    numbers in row headers
+    */ 
+
+    bool column_headers = true;
+    for (int i = 0; i < data_width; i++) {
+        if (is_valid_double(values[i])) {
+            column_headers = false;
+            break;
+        }
+    }
+
+    // We don't have column headers, i.e. not all strings
+    if (!column_headers) {
+        // The first can be a string or a number, the rest have to be numbers
+        for (int i = 1; i < data_width; i++) {
+            // Not all numbers 
+            if (!is_valid_double(values[i])) {
+                fprintf(stderr, "Error: Data formatting expects headers to be numerical or lexicographical.\n");
+                fprintf(stderr, "Mixed formatting: column header\n");
+                fprintf(stderr, "File format error detected.\n");
+                
+                free_matrix(values, values_size);
+                free_header_strings(&header_strings);
+
+                return 1;
+            }
+        }
+    }
+
+    // Verify row header formatting
+    bool row_headers = true;
+    for (int i = 0; i <= values_size - data_width; i += data_width) { 
+        if (is_valid_double(values[i])) {
+            row_headers = false;
+            break;
+        }
+    }
+
+    // We don't have row headers, i.e. not all strings
+    if (!row_headers) {
+        for (int i = data_width; i <= values_size - data_width; i += data_width) {
+            // Not all numbers
+            if (!is_valid_double(values[i])) {
+                fprintf(stderr, "Error: Data formatting expects headers to be numerical or lexicographical.\n");
+                fprintf(stderr, "Mixed formatting: row headers\n");
+                fprintf(stderr, "File format error detected.\n");
+                
+                free_matrix(values, values_size);
+                free_header_strings(&header_strings);
+
+                return 1;
+            }
+        }
+
+        if (!column_headers && !is_valid_double(values[0])) {
+            fprintf(stderr, "Error: Data formatting expects headers to be numerical or lexicographical.\n");
+            fprintf(stderr, "Mixed formatting: column headers\n");
+            fprintf(stderr, "File format error detected.\n");
+            
+            free_matrix(values, values_size);
+            free_header_strings(&header_strings);
+            
+            return 1;
+        } 
+    }
+
+    // printf("Parsed integer bounds structure before adjusting for headers:\n");
+    // printf("  starting_row_int    = %d\n", header_integers.starting_row);
+    // printf("  ending_row_int      = %d\n", header_integers.ending_row);
+    // printf("  starting_column_int = %d\n", header_integers.starting_column);
+    // printf("  ending_column_int   = %d\n", header_integers.ending_column);
+
+    // Adjust initial bounds if column headers are present
+    if (column_headers) {
+        // We skip the first row for data if there's a column header
+        if (header_integers.starting_row != -1) header_integers.starting_row++;
+        if (header_integers.ending_row != -1) header_integers.ending_row++;
+
+        // If the user specified "full", adjust accordingly
+        if (header_strings.starting_row && strcmp(header_strings.starting_row, "full") == 0) {
+            header_integers.starting_row = 1;  // start after the header row
+        }
+
+        if (header_strings.ending_row && strcmp(header_strings.ending_row, "full") == 0) {
+            // Make sure we don't exceed file bounds
+            header_integers.ending_row = num_lines - 1;
+        }
+    }
+
+    // Adjust bounds if row headers are present
+    if (row_headers) {
+        // Skip the first column if there's a row header
+        if (header_integers.starting_column != -1) header_integers.starting_column++;
+        if (header_integers.ending_column != -1) header_integers.ending_column++;
+
+        // If the user specified "full" for columns
+        if (header_strings.starting_column && strcmp(header_strings.starting_column, "full") == 0) {
+            header_integers.starting_column = 1;  // skip header column
+        }
+
+        if (header_strings.ending_column && strcmp(header_strings.ending_column, "full") == 0) {
+            header_integers.ending_column = data_width - 1;
+        }
+    }
+
+    // General fallback (if headers weren't present, still handle "full")
+    if (!column_headers) {
+        if (header_strings.starting_row && strcmp(header_strings.starting_row, "full") == 0) {
+            header_integers.starting_row = 0;
+        }
+        if (header_strings.ending_row && strcmp(header_strings.ending_row, "full") == 0) {
+            header_integers.ending_row = num_lines - 1;
+        }
+    }
+    if (!row_headers) {
+        if (header_strings.starting_column && strcmp(header_strings.starting_column, "full") == 0) {
+            header_integers.starting_column = 0;
+        }
+        if (header_strings.ending_column && strcmp(header_strings.ending_column, "full") == 0) {
+            header_integers.ending_column = data_width - 1;
+        }
+    }
+
+    // printf("Parsed integer bounds structure:\n");
+    // printf("  starting_row_int    = %d\n", header_integers.starting_row);
+    // printf("  ending_row_int      = %d\n", header_integers.ending_row);
+    // printf("  starting_column_int = %d\n", header_integers.starting_column);
+    // printf("  ending_column_int   = %d\n", header_integers.ending_column);
 
     // If we can't find one of the requested headers or they are out of bounds
     if (header_integers.starting_row <= -1 || 
@@ -515,14 +645,12 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
             header_strings.starting_row ? 
                 fprintf(stderr, "   Requested starting row: %s\n", header_strings.starting_row) : 
                 fprintf(stderr, "   Requested starting row: %d\n", header_integers.starting_row);
-                // fprintf(stderr, "File data width: %d\n", data_width);
                 fprintf(stderr, "   File number of row(s): %d\n", num_lines);
         }
         if (header_integers.ending_row == -1 || header_integers.ending_row >= num_lines) {
             header_strings.ending_row ? 
                 fprintf(stderr, "   Requested ending row: %s\n", header_strings.ending_row) : 
                 fprintf(stderr, "   Requested ending row: %d\n", header_integers.ending_row);
-                // fprintf(stderr, "File data width: %d\n", data_width);
                 fprintf(stderr, "   File number of row(s): %d\n", num_lines);
         }
         if (header_integers.starting_column == -1 || header_integers.starting_column >= data_width) {
@@ -530,14 +658,12 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
                 fprintf(stderr, "   Requested starting column: %s\n", header_strings.starting_column) : 
                 fprintf(stderr, "   Requested starting column: %d\n", header_integers.starting_column);
                 fprintf(stderr, "   File number of columns: %d\n", data_width);
-                // fprintf(stderr, "File number of row(s): %d\n", num_lines);
         }
         if (header_integers.ending_column == -1 || header_integers.ending_column >= data_width) {
             header_strings.ending_column ? 
                 fprintf(stderr, "   Requested ending column: %s\n", header_strings.ending_column) : 
                 fprintf(stderr, "   Requested ending column: %d\n", header_integers.ending_column);
                 fprintf(stderr, "   File number of columns: %d\n", data_width);
-                // fprintf(stderr, "File number of row(s): %d\n", num_lines);
         }
 
         // Free allocated memory
@@ -548,10 +674,7 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         return 1;
     }
 
-    // Free the strings allocated to store requested headers
-    free_header_strings(&header_strings);
-
-    // If the first or last need to be switched, i.e. end > start
+    // Switch values if the first or last need to be switched, i.e. end > start
     int starting_row_copy = header_integers.starting_row;
     int ending_row_copy = header_integers.ending_row;
     int starting_column_copy = header_integers.starting_column;
@@ -563,89 +686,8 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
     header_integers.starting_column = min(starting_column_copy, ending_column_copy);
     header_integers.ending_column = max(starting_column_copy, ending_column_copy);
 
-    // Verify column and row header formatting consistency
-    bool column_headers = true;
-    for (int i = 0; i < data_width; i++) {
-        if (isValidDouble(values[i])) {
-            column_headers = false;
-            break;
-        }
-    }
-
-    // We don't have column headers, i.e. not all strings
-    if (!column_headers) {
-        // The first can be a string or a number, the rest have to be numbers
-        for (int i = 1; i < data_width; i++) {
-            // Not all numbers 
-            if (!isValidDouble(values[i])) {
-                fprintf(stderr, "Error: Data formatting expects headers to be numerical or lexicographical.\n");
-                fprintf(stderr, "Mixed formatting: column header\n");
-                fprintf(stderr, "File format error detected.\n");
-                free_matrix(values, values_size);
-                return 1;
-            }
-        }
-    }
-
-    // Verify row header formatting
-    bool row_headers = true;
-    for (int i = 0; i <= values_size - data_width; i += data_width) { 
-        if (isValidDouble(values[i])) {
-            row_headers = false;
-            break;
-        }
-    }
-
-    // We don't have row headers, i.e. not all strings
-    if (!row_headers) {
-        for (int i = data_width; i <= values_size - data_width; i += data_width) {
-            // Not all numbers
-            if (!isValidDouble(values[i])) {
-                fprintf(stderr, "Error: Data formatting expects headers to be numerical or lexicographical.\n");
-                fprintf(stderr, "Mixed formatting: row headers\n");
-                fprintf(stderr, "File format error detected.\n");
-                free_matrix(values, values_size);
-                return 1;
-            }
-        }
-
-        if (!column_headers && !isValidDouble(values[0])) {
-            fprintf(stderr, "Error: Data formatting expects headers to be numerical or lexicographical.\n");
-            fprintf(stderr, "Mixed formatting: column headers\n");
-            fprintf(stderr, "File format error detected.\n");
-            free_matrix(values, values_size);
-            return 1;
-        } 
-    }
-
-    if (column_headers) {
-        header_integers.starting_row++;
-        header_integers.ending_row++;
-
-        if (header_integers.starting_row >= num_lines || header_integers.ending_row >= num_lines) {
-            fprintf(stderr, "Error: Requested dimensions not found or exceeded dimensions (indexed from 0).\n");
-            fprintf(stderr, "   Requested starting row: %s\n", header_strings.starting_row);             
-            fprintf(stderr, "   Requested ending row: %s\n", header_strings.ending_row); 
-            fprintf(stderr, "   File number of row(s): %d\n", num_lines);
-        }
-    }
-
-    if (row_headers) {
-        header_integers.starting_column++;
-        header_integers.ending_column++;
-
-        if (header_integers.starting_column >= data_width || header_integers.ending_column >= data_width) {
-            fprintf(stderr, "Error: Requested dimensions not found or exceeded dimensions (indexed from 0).\n");
-            fprintf(stderr, "   Requested starting column: %s\n", header_strings.starting_column);             
-            fprintf(stderr, "   Requested ending column: %s\n", header_strings.ending_column); 
-            fprintf(stderr, "   File number of column(s): %d\n", data_width);
-        }
-    }
-
-
-    // Print values array
-    printf("\nProcessed Values:\n");
-    pretty_print_values(values, values_size, data_width);
+    // Free the strings allocated to store requested headers
+    free_header_strings(&header_strings);
 
     // Grab values from the array
     int sub_width = (header_integers.ending_column - header_integers.starting_column) + 1;
@@ -655,19 +697,6 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         perror("malloc failed for subregion");
         exit(EXIT_FAILURE);
     }
-
-    // Take the values array, build the array that gets passed off to the python function
-    printf("Requested Indices (0 indexed):\n");
-    printf("  Starting Row:    %d\n", header_integers.starting_row);
-    printf("  Ending Row:      %d\n", header_integers.ending_row);
-    printf("  Starting Column: %d\n", header_integers.starting_column);
-    printf("  Ending Column  : %d\n", header_integers.ending_column); 
-    printf("  Sub Height     : %d\n", sub_height);
-    printf("  Sub Width      : %d\n", sub_width);
-    printf("  Values Width   : %d\n", data_width);
-    printf("  Values Height  : %d\n", num_lines);
-    printf("  Row headers    ? %d\n", row_headers);
-    printf("  Column headers ? %d\n", column_headers);
 
     int i = 0;
     for (int row = 0; row < sub_height; row++) {
@@ -686,18 +715,23 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         }
     }
 
-    printf("Operation: %d\n", operations);
+    int subregion_size = sub_height * sub_width;
+
+    // Pretty print the input data
+    pretty_print_values(values, values_size, data_width);
 
     free_matrix(values, values_size);
 
-    pretty_print_values(subregion, sub_height * sub_width, sub_width);
-
-    int marshaller = marshall_operations(subregion, sub_height, sub_width, operations);
+    // Send out the operations on the subregion to be performed across threads
+    int marshaller = marshall_operations(subregion, sub_height, sub_width, subregion_size, operations, thread_count);
+    if (marshaller) {
+        fprintf(stderr, "Error: marshall_operations failed to compute operation (returned %d)\n", marshaller);
+        free_matrix(subregion, sub_height * sub_width);     
+        return 1;
+    }
 
     free_matrix(subregion, sub_height * sub_width);
  
-    // Hand the data off to the matrix library with the opeations parameter
-
     return 0;
 }
 

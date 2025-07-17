@@ -14,7 +14,7 @@ fi
 SHARED_LIB_DIR="./shared_libraries"
 SHARED_LIB_NAME="libmatrix_lib.so"
 MATRIX_LIB_SOURCE="./data_preperation/cli_ops/matrix_lib.c"
-FAT_DATA_SOURCE="./data_preperation/arithmetic_lib/fat_data.c"
+FAT_DATA_SOURCE="./data_preperation/arithmetic_lib/fat_data/fat_data.c"
 MARSHALLER_SOURCE="./data_preperation/cli_ops/marshaller/marshaller.c"
 PYTHON_SCRIPT="./cli_parser.py"
 HOOK_C="./dev_functionality/valgrind/valgrind_driver.c"
@@ -31,12 +31,18 @@ mkdir -p "$valgrind_LOG_DIR"
 MEMCHECK=false
 RERUN=false
 ARGS=()
+OPERATIONS=4  # Default: mean
+THREAD_COUNT=1  # Default: 1
 
 for arg in "$@"; do
     if [ "$arg" == "--memcheck" ]; then
         MEMCHECK=true
     elif [ "$arg" == "--rerun" ]; then
         RERUN=true
+    elif [[ "$arg" == --operations=* ]]; then
+        OPERATIONS="${arg#--operations=}"
+    elif [[ "$arg" == --thread-count=* ]]; then
+        THREAD_COUNT="${arg#--thread-count=}"
     else
         ARGS+=("$arg")
     fi
@@ -82,6 +88,7 @@ if [ "$MEMCHECK" = true ]; then
 
     # Loop through each line and create a dummy log file
     while IFS= read -r line || [[ -n "$line" ]]; do
+        echo
         echo "[▶️] : $line"
 
         # Extract the base CSV filename and arguments
@@ -100,8 +107,8 @@ if [ "$MEMCHECK" = true ]; then
                 --show-leak-kinds=all \
                 --track-origins=yes \
                 --log-file="$log_file" \
-                "$HOOK_EXEC" "$csv_file" "$y0" "$y1" "$x0" "$x1"
-        ) || echo "[⚠️] Valgrind exited with failure: $file_name \n\n"
+                "$HOOK_EXEC" "$csv_file" "$y0" "$y1" "$x0" "$x1" "$OPERATIONS" "$THREAD_COUNT" 
+        ) || echo "[⚠️] Valgrind exited with failure: $file_name" 
 
     done < "$COMMANDS_FILE"
 
@@ -114,7 +121,7 @@ else
     gcc -shared -fPIC -g -O2 -o "$SHARED_LIB_DIR/$SHARED_LIB_NAME" \
         "$MATRIX_LIB_SOURCE" "$FAT_DATA_SOURCE" "$MARSHALLER_SOURCE" -lpthread
 
-    # Run Python script as usual
+    # Run Python script as usual, passing operations and thread count
     python3 "$PYTHON_SCRIPT" "${ARGS[@]}"
 fi
 

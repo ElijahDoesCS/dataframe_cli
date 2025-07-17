@@ -72,10 +72,11 @@ def process_input(args):
 
     # Load the C library and define argument types
     matrix_lib = ctypes.CDLL('./shared_libraries/libmatrix_lib.so')
-    matrix_lib.load_data.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_short]
+    matrix_lib.load_data.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
     matrix_lib.load_data.restype = ctypes.c_int
 
     operations = 0
+    thread_count = args.thread_count
 
     # Bitwise flag definitions
     MAX_FLAG = 1 << 0     # 000001 (1)
@@ -100,7 +101,9 @@ def process_input(args):
         operations |= STDDEV_FLAG
 
     # Call the C function that prepares the data for operation
-    result = matrix_lib.load_data(file, rows_starting_header, rows_ending_header, columns_starting_header, columns_ending_header, operations)
+    result = matrix_lib.load_data(file, rows_starting_header, rows_ending_header, 
+                                  columns_starting_header, columns_ending_header, 
+                                  operations, thread_count)
 
     # Returns result of stat operation from shared library
     return "Completed operation from shared library." if result == 0 else "Operation exited with error."
@@ -125,6 +128,7 @@ def main():
     parser.add_argument('--median', action='store_true', help='Calculate the median of the dataset')
     parser.add_argument('--mode', action='store_true', help='Calculate the mode of the dataset')
     parser.add_argument('--stddev', action='store_true', help='Calculate the standard deviation of the dataset')
+    parser.add_argument('--thread-count', type=int, default=1, help='Number of threads to use')
 
     # Parse the arguments
     args = parser.parse_args()

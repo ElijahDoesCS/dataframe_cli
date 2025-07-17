@@ -70,3 +70,7 @@ docker run --rm -it -v "$(pwd)":/app fatdata-asan
 - Memory mapped operations
 - Vector API integration
 
+# Target command
+./dataframes/example2.csv full full full full
+
+
