@@ -62,6 +62,11 @@ docker run --rm -it -v "$(pwd)":/app fatdata-asan
 # ToDO
 - Test edge cases on CSV dimensions
 - Implement the Marshaller thread operation w/ fat data CLI
+    - Mean
+    - Median
+    - Mode
+    - Stddev
+- Input range selection is broken rn
 
 # Constraints, issues, and ideas for future development
 - Single width of column data operations

@@ -180,7 +180,7 @@ bool process_line(const char *line,
                         return false;
                     }
 
-                    header_indeces->starting_column = current_width;
+                    header_indeces->starting_column = current_width - 1;
                 }
                 if (requested_headers.ending_column &&
                     strcmp(token, requested_headers.ending_column) == 0) {
@@ -192,7 +192,7 @@ bool process_line(const char *line,
                         return false;
                     }
 
-                    header_indeces->ending_column = current_width;
+                    header_indeces->ending_column = current_width - 1;
                 }
                 if (requested_headers.starting_row &&
                     strcmp(token, requested_headers.starting_row) == 0) {
@@ -230,7 +230,7 @@ bool process_line(const char *line,
                         return false;
                     }
 
-                    header_indeces->starting_column = current_width;
+                    header_indeces->starting_column = current_width - 1;
                 }
                 if (requested_headers.ending_column &&
                     strcmp(token, requested_headers.ending_column) == 0) {
@@ -242,7 +242,7 @@ bool process_line(const char *line,
                         return false;
                     }
 
-                    header_indeces->ending_column = current_width;
+                    header_indeces->ending_column = current_width - 1;
                 }
             }
         } else if (current_width == 1) {
@@ -486,6 +486,20 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         return 1;
     }
 
+    // // Print header_strings
+    // printf("header_strings:\n");
+    // printf("  starting_row: %s\n", header_strings.starting_row ? header_strings.starting_row : "(null)");
+    // printf("  ending_row: %s\n", header_strings.ending_row ? header_strings.ending_row : "(null)");
+    // printf("  starting_column: %s\n", header_strings.starting_column ? header_strings.starting_column : "(null)");
+    // printf("  ending_column: %s\n", header_strings.ending_column ? header_strings.ending_column : "(null)");
+
+    // // Print header_integers
+    // printf("header_integers:\n");
+    // printf("  starting_row: %d\n", header_integers.starting_row);
+    // printf("  ending_row: %d\n", header_integers.ending_row);
+    // printf("  starting_column: %d\n", header_integers.starting_column);
+    // printf("  ending_column: %d\n", header_integers.ending_column);
+
      // Verify spreadsheet dimensions
     if (data_width < 2 || num_lines < 2) {
         free_matrix(values, values_size);
@@ -566,17 +580,11 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         } 
     }
 
-    // printf("Parsed integer bounds structure before adjusting for headers:\n");
-    // printf("  starting_row_int    = %d\n", header_integers.starting_row);
-    // printf("  ending_row_int      = %d\n", header_integers.ending_row);
-    // printf("  starting_column_int = %d\n", header_integers.starting_column);
-    // printf("  ending_column_int   = %d\n", header_integers.ending_column);
-
     // Adjust initial bounds if column headers are present
     if (column_headers) {
         // We skip the first row for data if there's a column header
-        if (header_integers.starting_row != -1) header_integers.starting_row++;
-        if (header_integers.ending_row != -1) header_integers.ending_row++;
+        if (header_integers.starting_row != -1 & header_strings.starting_row == NULL) header_integers.starting_row++;
+        if (header_integers.ending_row != -1 & header_strings.ending_row == NULL) header_integers.ending_row++;
 
         // If the user specified "full", adjust accordingly
         if (header_strings.starting_row && strcmp(header_strings.starting_row, "full") == 0) {
@@ -592,8 +600,8 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
     // Adjust bounds if row headers are present
     if (row_headers) {
         // Skip the first column if there's a row header
-        if (header_integers.starting_column != -1) header_integers.starting_column++;
-        if (header_integers.ending_column != -1) header_integers.ending_column++;
+        if (header_integers.starting_column != -1 & header_strings.starting_column == NULL) header_integers.starting_column++;
+        if (header_integers.ending_column != -1 & header_strings.ending_column == NULL) header_integers.ending_column++;
 
         // If the user specified "full" for columns
         if (header_strings.starting_column && strcmp(header_strings.starting_column, "full") == 0) {
@@ -729,6 +737,8 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         free_matrix(subregion, sub_height * sub_width);     
         return 1;
     }
+
+    pretty_print_values(subregion, subregion_size, sub_width);
 
     free_matrix(subregion, sub_height * sub_width);
  

@@ -13,9 +13,11 @@ fi
 # Define paths
 SHARED_LIB_DIR="./shared_libraries"
 SHARED_LIB_NAME="libmatrix_lib.so"
+STATISTICAL_OPS_SOURCE="./data_preperation/arithmetic_lib/statistical_ops/statistical_ops.c"
 MATRIX_LIB_SOURCE="./data_preperation/cli_ops/matrix_lib.c"
 FAT_DATA_SOURCE="./data_preperation/arithmetic_lib/fat_data/fat_data.c"
 MARSHALLER_SOURCE="./data_preperation/cli_ops/marshaller/marshaller.c"
+MERGE_SORT_SOURCE="./data_preperation/arithmetic_lib/fat_data/fat_data.c"
 PYTHON_SCRIPT="./cli_parser.py"
 HOOK_C="./dev_functionality/valgrind/valgrind_driver.c"
 HOOK_EXEC="./dev_functionality/valgrind/valgrind_runner"
@@ -68,7 +70,7 @@ if [ "$MEMCHECK" = true ]; then
 
     # Compile shared lib WITHOUT valgrind (no sanitizer needed for Valgrind)
     gcc -shared -fPIC -g -O2 -o "$SHARED_LIB_DIR/$SHARED_LIB_NAME" \
-        "$MATRIX_LIB_SOURCE" "$FAT_DATA_SOURCE" "$MARSHALLER_SOURCE" -lpthread
+        "$MATRIX_LIB_SOURCE" "$FAT_DATA_SOURCE" "$MARSHALLER_SOURCE" "$STATISTICAL_OPS_SOURCE" -lpthread
 
     # Compile the hook runner (C entry point)
     gcc -g -O2 -o "$HOOK_EXEC" "$HOOK_C" -L"$SHARED_LIB_DIR" -lmatrix_lib
@@ -119,7 +121,7 @@ else
 
     # Compile shared lib without Valgrind
     gcc -shared -fPIC -g -O2 -o "$SHARED_LIB_DIR/$SHARED_LIB_NAME" \
-        "$MATRIX_LIB_SOURCE" "$FAT_DATA_SOURCE" "$MARSHALLER_SOURCE" -lpthread
+        "$MATRIX_LIB_SOURCE" "$FAT_DATA_SOURCE" "$MARSHALLER_SOURCE" "$STATISTICAL_OPS_SOURCE" -lpthread
 
     # Run Python script as usual, passing operations and thread count
     python3 "$PYTHON_SCRIPT" "${ARGS[@]}"

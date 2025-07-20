@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#define MAX_NUMBER_LENGTH 2048
+#define MAX_NUMBER_LENGTH 4096
 
 /**
  * Checks if a string represents a valid floating-point number of arbitrary size.

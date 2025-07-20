@@ -43,7 +43,11 @@ int compare_big_numbers(const char *num1, const char *num2) {
     size_t len1 = strlen(num1), len2 = strlen(num2);
     if (len1 > len2) return 1;
     if (len1 < len2) return -1;
-    return strcmp(num1, num2);
+
+    int cmp = strcmp(num1, num2);
+    if (cmp > 0) return 1;
+    if (cmp < 0) return -1;
+    return 0;
 }
 
 int is_negative(const char *num) {
