@@ -1,6 +1,10 @@
-// #ifndef MERGE_SORT_H
-// #define MERGE_SORT_H
+#ifndef MERGE_H
+#define MERGE_H
 
-// void sort_local_chunk(char **chunk, int chunk_size);
+/*
+    @param subregion: thread share of requested boundaries that gets modified in place
+    @param chunk_size: size of chunk 
+ */
+void merge_sort(char **subregion, int chunk_size);
 
-// #endif // MERGE_SORT_H
+#endif // MERGE_H 

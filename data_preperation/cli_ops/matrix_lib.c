@@ -65,7 +65,7 @@ bool value_set(header_integers header_indeces, HeaderField field) {
 void free_matrix(char **values, int values_size) {
     if (values) {
         for (int i = 0; i < values_size; i++) {
-            free(values[i]); 
+            if (values[i]) free(values[i]); 
         }
         free(values); 
     }
@@ -737,8 +737,6 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         free_matrix(subregion, sub_height * sub_width);     
         return 1;
     }
-
-    pretty_print_values(subregion, subregion_size, sub_width);
 
     free_matrix(subregion, sub_height * sub_width);
  

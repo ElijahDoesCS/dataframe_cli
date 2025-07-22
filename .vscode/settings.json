@@ -2,6 +2,7 @@
     "files.associations": {
         "*.py": "python",
         "test_hook.C": "cpp",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "merge.h": "c"
     }
 }

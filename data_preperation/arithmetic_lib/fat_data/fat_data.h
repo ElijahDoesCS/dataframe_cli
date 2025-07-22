@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #define MAX_NUMBER_LENGTH 4096
+#define DEFAULT_PRECISION 6
 
 /**
  * Checks if a string represents a valid floating-point number of arbitrary size.

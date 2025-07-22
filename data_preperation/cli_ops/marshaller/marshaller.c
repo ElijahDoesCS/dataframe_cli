@@ -4,6 +4,7 @@
 #include "../martix_lib.h"
 #include "../../arithmetic_lib/statistical_ops/statistical_ops.h"
 #include "../../arithmetic_lib/sorting/merge/merge.h"
+#include "../../arithmetic_lib/sorting/k_way/k_way.h"
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,7 +65,7 @@ void print_thread_structs(thread_args_t *thread_args, int num_threads) {
         if (thread_args[i].operations & OP_MAX) printf("Local max: %s\n", thread_args[i].local_max);
         if (thread_args[i].operations & OP_MIN) printf("Local min: %s\n", thread_args[i].local_min);
         if (thread_args[i].operations & OP_MEAN) printf("Local mean (sum): %s\n", thread_args[i].local_sum);
-
+        printf("\n");
     }
 }
 
@@ -80,13 +81,13 @@ void print_final_results(final_args_t *final_results, int operations) {
             printf("   Mean: %s\n", final_results->mean_result);
         }
         if (operations & OP_MEDIAN) {
-            printf("    Median: %s\n", final_results->median_result);
+            printf(" Median: %s\n", final_results->median_result);
         }
         if (operations & OP_MODE) {
-            printf("    Mode: %s\n", final_results->mode_result);
+            printf("   Mode: %s\n", final_results->mode_result);
         }
         if (operations & OP_STDDEV) {
-            printf("    Stddev: %s\n", final_results->stddev_result);
+            printf(" Stddev: %s\n", final_results->stddev_result);
         } 
 }
 
@@ -100,9 +101,15 @@ void *thread_operations(void *args) {
 
     // Initialize the local thread chunk
     targs->local_values = malloc(sizeof(char *) * chunk_size);
+    if (!targs->local_values) {
+        fprintf(stderr, "Malloc failed in thread\n");
+        pthread_exit((void *)1);  // 1 = failure
+    }
+
     for (int i = start_idx, j = 0; i < end_idx; i++, j++) {
         if (!subregion[i]) {
             fprintf(stderr, "WARNING: subregion[%d] is NULL\n", i);
+            pthread_exit((void *)1);
         }
 
         // Set shallow references
@@ -110,12 +117,24 @@ void *thread_operations(void *args) {
     }
 
     // Bitwise checks for each operation, compute val on chunk and store in thread structure
-    if (operations & OP_MAX) {
+    if ((operations & OP_MAX) && !(operations & OP_MEDIAN)) {
+        // printf("We are computing the max\n");
         compute_local_max(targs->local_values, targs->chunk_size, targs->local_max); 
     }
+    else if (operations & OP_MIN) {
+        // Set null by default
+        char *cpy = "\0";
+        strncpy(targs->local_min, cpy, MAX_NUMBER_LENGTH);
+    }
 
-    if (operations & OP_MIN) {
+    if ((operations & OP_MIN) && !(operations & OP_MEDIAN)) {
+        // printf("We computing the min\n");
         compute_local_min(targs->local_values, targs->chunk_size, targs->local_min);
+    }
+    else if (operations & OP_MIN) {
+        // Set null by default
+        char *cpy = "\0";
+        strncpy(targs->local_min, cpy, MAX_NUMBER_LENGTH);
     }
 
     if (operations & OP_MEAN) {
@@ -123,7 +142,7 @@ void *thread_operations(void *args) {
     }
 
     if (operations & OP_MEDIAN) {
-        // sort_local_chunk(targs->local_values, targs->chunk_size);
+        merge_sort(targs->local_values, targs->chunk_size); // Sort chunk
     }
 
     if (operations & OP_MODE) { 
@@ -136,21 +155,28 @@ void *thread_operations(void *args) {
 }
 
 void thread_cleanup(pthread_t *threads, int thread_count) {
+    void *retval;
     for (int i = 0; i < thread_count; i++) {
-        pthread_join(threads[i], NULL);
+        pthread_join(threads[i], retval);
+
+        if ((long)retval != 0) {
+            fprintf(stderr, "Thread %d exited with failure code %ld\n", i, (long)retval);
+
+            // Handle status code...
+        }
     }
     free(threads);
 
    return;
 }
 
-void thread_structs_cleanup(thread_args_t *thread_args, final_args_t *final_args, int num_threads, int operations, int subregion_size) {
+void thread_structs_cleanup(thread_args_t *thread_args, final_args_t *final_args,
+                            int num_threads, int operations, int subregion_size, int sub_width,
+                            char **subregion) {
     char max_result[MAX_NUMBER_LENGTH];
     char min_result[MAX_NUMBER_LENGTH];
-    char mean_result[MAX_NUMBER_LENGTH];
-    strcpy(mean_result, "0");
-    char median_result[MAX_NUMBER_LENGTH];
-    strcpy(median_result, "BLA");
+    char mean_result[MAX_NUMBER_LENGTH];    
+    char median_result[MAX_NUMBER_LENGTH];    
     char mode_result[MAX_NUMBER_LENGTH];
     char stddev_result[MAX_NUMBER_LENGTH];
 
@@ -158,52 +184,90 @@ void thread_structs_cleanup(thread_args_t *thread_args, final_args_t *final_args
     snprintf(subregion_len, MAX_NUMBER_LENGTH, "%d", subregion_size);
     subregion_len[MAX_NUMBER_LENGTH - 1] = '\0';
 
+    // mother fuck
+    char **merged_array = NULL;
+    if (operations & OP_MEDIAN) {
+        char ***k_way = malloc(sizeof(char **) * num_threads);
+        int *chunk_sizes = malloc(sizeof(int) * num_threads);
+        for (int i = 0; i < num_threads; i++) {
+            k_way[i] = thread_args[i].local_values;
+            chunk_sizes[i] = thread_args[i].chunk_size;
+        }
+
+        merged_array = k_way_merge(k_way, chunk_sizes, num_threads, subregion_size);
+
+        pretty_print_values(merged_array, subregion_size, sub_width);
+
+        // Just take the damned indeces
+        if (operations & OP_MAX) {
+            strncpy(max_result, merged_array[subregion_size - 1], MAX_NUMBER_LENGTH);
+        }
+        if (operations & OP_MIN) {
+            strncpy(min_result, merged_array[0], MAX_NUMBER_LENGTH);
+        }
+
+        // Obtain the actual median from the sorted array
+        if (subregion_size % 2 == 1) {
+            strncpy(median_result, merged_array[subregion_size / 2], MAX_NUMBER_LENGTH);
+        }
+        else {
+                char temp_sum[MAX_NUMBER_LENGTH];
+                char *divide_by_2 = "2\0";
+                add_big_integers(merged_array[(subregion_size / 2) - 1],
+                    merged_array[subregion_size / 2],
+                    temp_sum);
+                divide_big_decimals(temp_sum, divide_by_2, DEFAULT_PRECISION, median_result);
+        }
+    }
+
     for (int i = 0; i < num_threads; i++) {
-            // Bitwise checks for each operation
-            if (operations & OP_MAX) {
-                // Take the max of each chunk's max
-                if (i == 0) {
-                    // Initialize max_result with the first thread's result
+
+        // Bitwise checks for each operation
+        if ((operations & OP_MAX) && !(operations & OP_MEDIAN)) {
+            // printf("we are doing this\n");
+            // Take the max of each chunk's max
+            if (i == 0) {
+                // Initialize max_result with the first thread's result
+                strncpy(max_result, thread_args[i].local_max, MAX_NUMBER_LENGTH - 1);
+            } else {
+                if (compare_big_numbers(thread_args[i].local_max, max_result) == 1) {
                     strncpy(max_result, thread_args[i].local_max, MAX_NUMBER_LENGTH - 1);
-                } else {
-                    if (compare_big_numbers(thread_args[i].local_max, max_result) == 1) {
-                        strncpy(max_result, thread_args[i].local_max, MAX_NUMBER_LENGTH - 1);
-                    }
                 }
             }
+        }
 
-            if (operations & OP_MIN) {
-                // Take the max of the threads array
-                if (i == 0) {
-                    // Initialize max_result with the first thread's result
+        if ((operations & OP_MIN) && !(operations & OP_MEDIAN)) {
+            // printf("we are taking the global min here\n");
+            // Take the min of each local min
+            if (i == 0) {
+                // Initialize min_result with the first thread's result
+                strncpy(min_result, thread_args[i].local_min, MAX_NUMBER_LENGTH - 1);
+            } else {
+                if (compare_big_numbers(thread_args[i].local_min, min_result) == -1) {
                     strncpy(min_result, thread_args[i].local_min, MAX_NUMBER_LENGTH - 1);
-                } else {
-                    if (compare_big_numbers(thread_args[i].local_min, min_result) == -1) {
-                        strncpy(min_result, thread_args[i].local_min, MAX_NUMBER_LENGTH - 1);
-                    }
                 }
             }
+        }
 
-            if (operations & OP_MEAN) {
-                if (i == 0) {
-                    strncpy(mean_result, thread_args[i].local_sum, MAX_NUMBER_LENGTH - 1);
-                    mean_result[MAX_NUMBER_LENGTH - 1] = '\0'; // Ensure null-termination
-                } else {
-                    char temp_result[MAX_NUMBER_LENGTH];
-                    add_big_integers(mean_result, thread_args[i].local_sum, temp_result);
-                    strncpy(mean_result, temp_result, MAX_NUMBER_LENGTH - 1);
-                    mean_result[MAX_NUMBER_LENGTH - 1] = '\0';
-                }
+        if (operations & OP_MEAN) {
+            if (i == 0) {
+                strncpy(mean_result, thread_args[i].local_sum, MAX_NUMBER_LENGTH - 1);
+                mean_result[MAX_NUMBER_LENGTH - 1] = '\0'; // Ensure null-termination
+            } else {
+                char temp_result[MAX_NUMBER_LENGTH];
+                add_big_integers(mean_result, thread_args[i].local_sum, temp_result);
+                strncpy(mean_result, temp_result, MAX_NUMBER_LENGTH - 1);
+                mean_result[MAX_NUMBER_LENGTH - 1] = '\0';
             }
-            if (operations & OP_MEDIAN) {
+        }
 
-            }
+        if (operations & OP_MODE) {
 
-            if (operations & OP_MODE) {
-            }
+        }
 
-            if (operations & OP_STDDEV) {
-            }  
+        if (operations & OP_STDDEV) {
+
+        }  
 
         // Free the array of structures allocated on heap, freeing the local_values on heap in each struct
         if (thread_args[i].local_values) free(thread_args[i].local_values);
@@ -212,11 +276,7 @@ void thread_structs_cleanup(thread_args_t *thread_args, final_args_t *final_args
 
     strncpy(final_args->max_result, max_result, MAX_NUMBER_LENGTH - 1);
     strncpy(final_args->min_result, min_result, MAX_NUMBER_LENGTH - 1);
-    // strncpy(final_args->mean_result, mean_result, MAX_NUMBER_LENGTH - 1);
-    // printf("Mean result sum at this point: %s\n", mean_result);
-    // printf("Subregion length at this point: %s\n", subregion_len);
-
-    divide_big_decimals(mean_result, subregion_len, 6, final_args->mean_result);
+    divide_big_decimals(mean_result, subregion_len, DEFAULT_PRECISION, final_args->mean_result);
     strncpy(final_args->median_result, median_result, MAX_NUMBER_LENGTH - 1);
     strncpy(final_args->mode_result, mode_result, MAX_NUMBER_LENGTH - 1);
     strncpy(final_args->stddev_result, stddev_result, MAX_NUMBER_LENGTH - 1);
@@ -260,16 +320,23 @@ int marshall_operations(char **subregion, int sub_height, int sub_width, int sub
         thread_args[i].end_idx = end_idx;
         thread_args[i].chunk_size = this_chunk_size;
         thread_args[i].operations = operations;
+        // printf("operations %d: %d", i, operations);
+        
 
         // Send threads to build their chunk and compute vals from them
-        pthread_create(&threads[i], NULL, thread_operations, &thread_args[i]);
+        int thread_creation = pthread_create(&threads[i], NULL, thread_operations, &thread_args[i]);
+        if (thread_creation != 0) break;
 
         current_index = end_idx;  // Move to the next chunk
     }
 
     thread_cleanup(threads, thread_count);
+    
     print_thread_structs(thread_args, thread_count);
-    thread_structs_cleanup(thread_args, &final_answers, thread_count, operations, subregion_size);
+    thread_structs_cleanup(thread_args, &final_answers, thread_count, operations, subregion_size, sub_width, subregion);
+    
+    // pretty_print_values(subregion, subregion_size, sub_width);
+    
     print_final_results(&final_answers, operations);
 
     return 0;
