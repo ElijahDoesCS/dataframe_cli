@@ -9,6 +9,7 @@
 
 #include "../arithmetic_lib/fat_data/fat_data.h"
 #include "./marshaller/marshaller.h"
+#include "../arithmetic_lib/hashmap/hashmap.h"
 
 #define BUFFER_INCREMENT 64
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -739,6 +740,10 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
     }
 
     free_matrix(subregion, sub_height * sub_width);
+
+    // char *test = "test";
+    // printf("\nTesting the hash function real quick: \n");
+    // hash_function(test);
  
     return 0;
 }

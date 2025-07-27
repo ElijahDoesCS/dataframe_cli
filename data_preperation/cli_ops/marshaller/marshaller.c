@@ -5,6 +5,7 @@
 #include "../../arithmetic_lib/statistical_ops/statistical_ops.h"
 #include "../../arithmetic_lib/sorting/merge/merge.h"
 #include "../../arithmetic_lib/sorting/k_way/k_way.h"
+#include "../../arithmetic_lib/hashmap/hashmap.h"
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +31,8 @@ typedef struct {
     char local_max[MAX_NUMBER_LENGTH];
     char **local_values;                 // for median/mode
     int local_count;
+
+    hashmap_t *local_freq_map; // Store the counts for each value for mode
 
     // Optionally pass shared result struct pointer
 } thread_args_t;
@@ -65,12 +68,12 @@ void print_thread_structs(thread_args_t *thread_args, int num_threads) {
         if (thread_args[i].operations & OP_MAX) printf("Local max: %s\n", thread_args[i].local_max);
         if (thread_args[i].operations & OP_MIN) printf("Local min: %s\n", thread_args[i].local_min);
         if (thread_args[i].operations & OP_MEAN) printf("Local mean (sum): %s\n", thread_args[i].local_sum);
-        printf("\n");
+        // printf("\n");
     }
 }
 
 void print_final_results(final_args_t *final_results, int operations) {
-        printf("Aggregate results\n");
+        printf("\nAggregate results\n");
         if (operations & OP_MAX) {
             printf("    Max: %s\n", final_results->max_result);
         }
@@ -146,6 +149,16 @@ void *thread_operations(void *args) {
     }
 
     if (operations & OP_MODE) { 
+        printf("Computing local counts for mode\n");
+        targs->local_freq_map = hashmap_create();
+        if (!targs->local_freq_map) {
+            fprintf(stderr, "Error creating hashmap for local frequency map\n");
+            pthread_exit((void *)1);  // 1 = failure
+        }
+
+        // Compute local counts
+        compute_local_counts(targs->local_values, targs->chunk_size, targs->local_freq_map);
+        // hashmap_print(targs->local_freq_map);
     }
 
     if (operations & OP_STDDEV) {        
@@ -177,7 +190,7 @@ void thread_structs_cleanup(thread_args_t *thread_args, final_args_t *final_args
     char min_result[MAX_NUMBER_LENGTH];
     char mean_result[MAX_NUMBER_LENGTH];    
     char median_result[MAX_NUMBER_LENGTH];    
-    char mode_result[MAX_NUMBER_LENGTH];
+    char *mode_result = "hi\0";
     char stddev_result[MAX_NUMBER_LENGTH];
 
     char subregion_len[MAX_NUMBER_LENGTH];
@@ -220,6 +233,21 @@ void thread_structs_cleanup(thread_args_t *thread_args, final_args_t *final_args
         }
     }
 
+    // Initialize the final hashmap for mode globally
+    hashmap_t *final_map = NULL;
+    if (operations & OP_MODE) {
+        final_map = hashmap_create();
+        if (!final_map) {
+            fprintf(stderr, "Error creating final hashmap for mode\n");
+            return;
+        }
+    } 
+    if (!final_map) {
+        fprintf(stderr, "Final hashmap for mode is NULL\n");
+        return;
+    }
+  
+
     for (int i = 0; i < num_threads; i++) {
 
         // Bitwise checks for each operation
@@ -261,8 +289,9 @@ void thread_structs_cleanup(thread_args_t *thread_args, final_args_t *final_args
             }
         }
 
-        if (operations & OP_MODE) {
-
+        if (operations & OP_MODE) {   
+            // Merge the current hashmap into the final one
+            hashmap_merge(final_map, thread_args[i].local_freq_map);
         }
 
         if (operations & OP_STDDEV) {
@@ -272,7 +301,15 @@ void thread_structs_cleanup(thread_args_t *thread_args, final_args_t *final_args
         // Free the array of structures allocated on heap, freeing the local_values on heap in each struct
         if (thread_args[i].local_values) free(thread_args[i].local_values);
         thread_args[i].local_values = NULL;
+
+        // Cleanup the local frequency map
+        if (thread_args[i].local_freq_map) {
+            hashmap_destroy(thread_args[i].local_freq_map);
+            thread_args[i].local_freq_map = NULL;
+        }
     }
+
+    mode_result = get_mode_key(final_map);
 
     strncpy(final_args->max_result, max_result, MAX_NUMBER_LENGTH - 1);
     strncpy(final_args->min_result, min_result, MAX_NUMBER_LENGTH - 1);
@@ -282,6 +319,7 @@ void thread_structs_cleanup(thread_args_t *thread_args, final_args_t *final_args
     strncpy(final_args->stddev_result, stddev_result, MAX_NUMBER_LENGTH - 1);
 
     free(thread_args);
+    if (operations & OP_MODE) hashmap_destroy(final_map);
 
     return;
 }
@@ -334,9 +372,7 @@ int marshall_operations(char **subregion, int sub_height, int sub_width, int sub
     
     print_thread_structs(thread_args, thread_count);
     thread_structs_cleanup(thread_args, &final_answers, thread_count, operations, subregion_size, sub_width, subregion);
-    
-    // pretty_print_values(subregion, subregion_size, sub_width);
-    
+        
     print_final_results(&final_answers, operations);
 
     return 0;

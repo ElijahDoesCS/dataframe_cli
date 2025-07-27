@@ -1,21 +1,14 @@
 #ifndef HASHMAP_H
 #define HASHMAP_H
 
-typedef struct HashNode {
-    char *key;
-    int count;
-    struct HashNode *next;
-} HashNode;
-
-typedef struct {
-    HashNode **buckets;
-    int size;
-} HashMap;
-
+typedef struct hashmap hashmap_t;
+hashmap_t* hashmap_create();
+void hashmap_put(hashmap_t* map, const char* key, int value);
+int hashmap_get(hashmap_t* map, const char* key);
 unsigned long hash_function(const char *str);
-HashMap *create_hashmap(int size);
-void hashmap_insert(HashMap *map, const char *key);
-void print_hashmap(HashMap *map);
-void free_hashmap(HashMap *map);
+void hashmap_destroy(hashmap_t* map);
+void hashmap_print(hashmap_t* map);
+void hashmap_merge(hashmap_t *dest, hashmap_t *src);
+char *get_mode_key(hashmap_t *map);
 
 #endif

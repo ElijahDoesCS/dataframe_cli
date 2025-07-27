@@ -1,5 +1,6 @@
 #include "statistical_ops.h"
 #include "../fat_data/fat_data.h"
+#include "../hashmap/hashmap.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,8 +68,18 @@ void compute_local_sum(char **chunk, int chunk_size, char *result) {
 }
 
 
-void compute_local_counts(char **chunk, int chunk_size, char *result) {
-    
+void compute_local_counts(char **chunk, int chunk_size, hashmap_t *freq_map) {
+    if (!chunk || chunk_size <= 0 || !freq_map) {
+        fprintf(stderr, "Invalid call to compute local counts function\n");
+        return;
+    }
+
+    for (int i = 0; i < chunk_size; i++) {
+        if (chunk[i] && strlen(chunk[i]) > 0) {
+            int count = hashmap_get(freq_map, chunk[i]);
+            hashmap_put(freq_map, chunk[i], count + 1);
+        }
+    }
     
     return;
 }
