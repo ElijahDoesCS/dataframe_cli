@@ -6,15 +6,7 @@
         - Mode
         - Max
         - Min
-        - Standard Deviation
         - Input range selection
-
-    - Reach features
-        - Interactive range selection UI
-        - Data output visualization 
-        - ML optimized threaded job allocation
-        - ML purposed arithmetic algorithms
-        - API integration
 
 ### Implemented with C library for operation on arbitrarily sized data types
 - Bash script runs the python and C library together

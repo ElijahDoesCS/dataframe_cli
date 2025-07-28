@@ -43,7 +43,7 @@ for arg in "$@"; do
         MEMCHECK=true
     elif [ "$arg" == "--rerun" ]; then
         RERUN=true
-    elif [[ "$arg" == --operations=* ]]; then
+    elif [[ "$arg" == --operations=* ]]; then # Bit of a quark, parses a literal number for memcheck's operations
         OPERATIONS="${arg#--operations=}"
     elif [[ "$arg" == --thread-count=* ]]; then
         THREAD_COUNT="${arg#--thread-count=}"
@@ -90,7 +90,7 @@ if [ "$MEMCHECK" = true ]; then
 
     echo "[📄] Reading command lines from: $COMMANDS_FILE"
 
-    # Loop through each line and create a dummy log file
+    # Loop through each line of generated commands and pass to Valgrind hook runner
     while IFS= read -r line || [[ -n "$line" ]]; do
         echo
         echo "[▶️] : $line"
@@ -111,11 +111,10 @@ if [ "$MEMCHECK" = true ]; then
                 --show-leak-kinds=all \
                 --track-origins=yes \
                 --log-file="$log_file" \
-                "$HOOK_EXEC" "$csv_file" "$y0" "$y1" "$x0" "$x1" "$OPERATIONS" "$THREAD_COUNT" 
+                "$HOOK_EXEC" "$csv_file" "$y0" "$y1" "$x0" "$x1" "$OPERATIONS" "$THREAD_COUNT" # Append ops & thread count
         ) || echo "[⚠️] Valgrind exited with failure: $file_name" 
 
     done < "$COMMANDS_FILE"
-
 
 # Normal mode (no memcheck)
 else

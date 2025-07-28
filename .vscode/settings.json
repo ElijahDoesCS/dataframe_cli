@@ -3,6 +3,7 @@
         "*.py": "python",
         "test_hook.C": "cpp",
         "stdio.h": "c",
-        "merge.h": "c"
+        "merge.h": "c",
+        "fat_data.h": "c"
     }
 }

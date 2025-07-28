@@ -41,17 +41,6 @@ void heapify_up(HeapNode heap[], int i) {
 }
 
 char **k_way_merge(char ***chunks, int *chunk_sizes, int num_threads, int subregion_length) {
-    // printf("\nHello from k_way merge\n");
-
-    // // Print chunks for debug
-    // for (int i = 0; i < num_threads; i++) {
-    //     printf("Thread %d chunk:\n", i);
-    //     for (int j = 0; j < chunk_sizes[i]; j++) {
-    //         printf("  [%d][%d] = %s\n", i, j, chunks[i][j]);
-    //     }
-    // }
-    // printf("\n");
-
     // Final result array
     char **result = malloc(sizeof(char*) * subregion_length);
     if (!result) {

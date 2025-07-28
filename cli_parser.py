@@ -1,5 +1,4 @@
 # Perform threaded statistical operation on CSV files using the C pthreads library
-# Use AI to optimize thread count in correlation with file size
 
 import argparse
 import os
@@ -11,8 +10,8 @@ def process_input(args):
 
     # Maximum or specified
     file = args.filename    
-    rows = args.yrange #if args.yrange else "full"
-    columns = args.xrange #if args.xrange else "full"
+    rows = args.yrange # if args.yrange else "full"
+    columns = args.xrange # if args.xrange else "full"
 
     if not file:
         print("Error: No filename provided.")
@@ -84,7 +83,6 @@ def process_input(args):
     MEAN_FLAG = 1 << 2    # 000100 (4)
     MEDIAN_FLAG = 1 << 3  # 001000 (8)
     MODE_FLAG = 1 << 4    # 010000 (16)
-    STDDEV_FLAG = 1 << 5  # 100000 (32)
 
     # Set bitwise flags based on user input
     if args.max:
@@ -97,8 +95,6 @@ def process_input(args):
         operations |= MEDIAN_FLAG
     if args.mode:
         operations |= MODE_FLAG
-    if args.stddev:
-        operations |= STDDEV_FLAG
 
     # Call the C function that prepares the data for operation
     result = matrix_lib.load_data(file, rows_starting_header, rows_ending_header, 
@@ -127,7 +123,6 @@ def main():
     parser.add_argument('--mean', action='store_true', help='Calculate the mean of the dataset')
     parser.add_argument('--median', action='store_true', help='Calculate the median of the dataset')
     parser.add_argument('--mode', action='store_true', help='Calculate the mode of the dataset')
-    parser.add_argument('--stddev', action='store_true', help='Calculate the standard deviation of the dataset')
     parser.add_argument('--thread-count', type=int, default=1, help='Number of threads to use')
 
     # Parse the arguments

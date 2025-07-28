@@ -4,7 +4,7 @@ import random
 csv_dir = "./dataframes"
 output_file = "./dev_functionality/valgrind/example_commands/commands.txt"
 
-# Get all CSV files that start with "example" and end with ".csv"
+# Create an example command per dataframe file
 csv_files = sorted([
     f for f in os.listdir(csv_dir)
     if f.startswith("example") and f.endswith(".csv")

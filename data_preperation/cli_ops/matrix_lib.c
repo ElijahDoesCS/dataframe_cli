@@ -171,11 +171,10 @@ bool process_line(const char *line,
         if (first_line) {
             if (current_width == 1) {
                 
+                // Consider whether we have already found the header, i.e. do not allow for repeat headers
                 if (requested_headers.starting_column &&
                     strcmp(token, requested_headers.starting_column) == 0) {                    
-                    // Consider whether we have already found the header, i.e. do not allow for repeat headers
                     if (value_set(*header_indeces, STARTING_COLUMN)) {
-                        // Found a repeat header
                         fprintf(stderr, "Error: Repeat header \"%s\"\n", token);
                         free(line_copy);
                         return false;
@@ -185,9 +184,7 @@ bool process_line(const char *line,
                 }
                 if (requested_headers.ending_column &&
                     strcmp(token, requested_headers.ending_column) == 0) {
-                    // Consider whether we have already found the header, i.e. do not allow for repeat headers
                     if (value_set(*header_indeces, ENDING_COLUMN)) {
-                        // Found a repeat header
                         fprintf(stderr, "Error: Repeat header \"%s\"\n", token);
                         free(line_copy);
                         return false;
@@ -197,9 +194,7 @@ bool process_line(const char *line,
                 }
                 if (requested_headers.starting_row &&
                     strcmp(token, requested_headers.starting_row) == 0) {
-                    // Consider whether we have already found the header, i.e. do not allow for repeat headers
                     if (value_set(*header_indeces, STARTING_ROW)) {
-                        // Found a repeat header
                         fprintf(stderr, "Error: Repeat header \"%s\"\n", token);
                         free(line_copy);
                         return false;
@@ -209,9 +204,7 @@ bool process_line(const char *line,
                 }
                 if (requested_headers.ending_row && 
                     strcmp(token, requested_headers.ending_row) == 0) {
-                    // Consider whether we have already found the header, i.e. do not allow for repeat headers
                     if (value_set(*header_indeces, ENDING_ROW)) {
-                        // Found a repeat header
                         fprintf(stderr, "Error: Repeat header \"%s\"\n", token);
                         free(line_copy);
                         return false;
@@ -220,12 +213,9 @@ bool process_line(const char *line,
                     header_indeces->ending_row = num_lines + 1;
                 }
             } else if (current_width >= 2) {
-                // Check if we find the starting or ending column header 
                 if (requested_headers.starting_column &&
                     strcmp(token, requested_headers.starting_column) == 0) {
-                    // Consider whether we have already found the header, i.e. do not allow for repeat headers
                     if (value_set(*header_indeces, STARTING_COLUMN)) {
-                        // Found a repeat header
                         fprintf(stderr, "Error: Repeat header \"%s\"\n", token);
                         free(line_copy);
                         return false;
@@ -235,9 +225,7 @@ bool process_line(const char *line,
                 }
                 if (requested_headers.ending_column &&
                     strcmp(token, requested_headers.ending_column) == 0) {
-                    // Consider whether we have already found the header, i.e. do not allow for repeat headers
                     if (value_set(*header_indeces, ENDING_COLUMN)) {
-                        // Found a repeat header
                         fprintf(stderr, "Error: Repeat header \"%s\"\n", token);
                         free(line_copy);
                         return false;
@@ -250,9 +238,7 @@ bool process_line(const char *line,
             // Print the row header if it matches
             if (requested_headers.starting_row &&
                 strcmp(token, requested_headers.starting_row) == 0) {
-                // Consider whether we have already found the header, i.e. do not allow for repeat headers
                 if (value_set(*header_indeces, STARTING_ROW)) {
-                    // Found a repeat header
                     fprintf(stderr, "Error: Repeat header \"%s\"\n", token);
                     free(line_copy);
                     return false;
@@ -262,9 +248,7 @@ bool process_line(const char *line,
             }
             if (requested_headers.ending_row && 
                 strcmp(token, requested_headers.ending_row) == 0) {
-                // Consider whether we have already found the header, i.e. do not allow for repeat headers
                 if (value_set(*header_indeces, ENDING_ROW)) {
-                    // Found a repeat header
                     fprintf(stderr, "Error: Repeat header \"%s\"\n", token);
                     free(line_copy);
                     return false;
@@ -487,21 +471,7 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         return 1;
     }
 
-    // // Print header_strings
-    // printf("header_strings:\n");
-    // printf("  starting_row: %s\n", header_strings.starting_row ? header_strings.starting_row : "(null)");
-    // printf("  ending_row: %s\n", header_strings.ending_row ? header_strings.ending_row : "(null)");
-    // printf("  starting_column: %s\n", header_strings.starting_column ? header_strings.starting_column : "(null)");
-    // printf("  ending_column: %s\n", header_strings.ending_column ? header_strings.ending_column : "(null)");
-
-    // // Print header_integers
-    // printf("header_integers:\n");
-    // printf("  starting_row: %d\n", header_integers.starting_row);
-    // printf("  ending_row: %d\n", header_integers.ending_row);
-    // printf("  starting_column: %d\n", header_integers.starting_column);
-    // printf("  ending_column: %d\n", header_integers.ending_column);
-
-     // Verify spreadsheet dimensions
+    // Verify spreadsheet dimensions
     if (data_width < 2 || num_lines < 2) {
         free_matrix(values, values_size);
         free_header_strings(&header_strings);
@@ -632,12 +602,6 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         }
     }
 
-    // printf("Parsed integer bounds structure:\n");
-    // printf("  starting_row_int    = %d\n", header_integers.starting_row);
-    // printf("  ending_row_int      = %d\n", header_integers.ending_row);
-    // printf("  starting_column_int = %d\n", header_integers.starting_column);
-    // printf("  ending_column_int   = %d\n", header_integers.ending_column);
-
     // If we can't find one of the requested headers or they are out of bounds
     if (header_integers.starting_row <= -1 || 
         header_integers.ending_row <= -1 ||
@@ -707,6 +671,7 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
         exit(EXIT_FAILURE);
     }
 
+    // Build out the subregion from the values array
     int i = 0;
     for (int row = 0; row < sub_height; row++) {
         for (int col = 0; col < sub_width; col++) {
@@ -731,19 +696,15 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
 
     free_matrix(values, values_size);
 
-    // Send out the operations on the subregion to be performed across threads
-    int marshaller = marshall_operations(subregion, sub_height, sub_width, subregion_size, operations, thread_count);
-    if (marshaller) {
-        fprintf(stderr, "Error: marshall_operations failed to compute operation (returned %d)\n", marshaller);
-        free_matrix(subregion, sub_height * sub_width);     
-        return 1;
-    }
+    // // Send out the operations on the subregion to be performed across threads
+    // int marshaller = marshall_operations(subregion, sub_height, sub_width, subregion_size, operations, thread_count);
+    // if (marshaller) {
+    //     fprintf(stderr, "Error: marshall_operations failed to compute operation (returned %d)\n", marshaller);
+    //     free_matrix(subregion, sub_height * sub_width);     
+    //     return 1;
+    // }
 
     free_matrix(subregion, sub_height * sub_width);
-
-    // char *test = "test";
-    // printf("\nTesting the hash function real quick: \n");
-    // hash_function(test);
  
     return 0;
 }
