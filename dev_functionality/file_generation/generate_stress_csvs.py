@@ -1,101 +1,126 @@
-import csv
-from itertools import cycle, islice
-from pathlib import Path
+import os
+import random
 
-# === CONFIGURATION ===
-WORDLIST_PATH = Path("./dev_functionality/file_generation/wordlist.txt")
-OUTPUT_DIR = Path("./dataframes")
-START_INDEX = 6  # Start numbering from example6
+import random
+import os
 
-# === UTILITY FUNCTIONS ===
-def load_wordlist(path):
-    if not path.exists():
-        raise FileNotFoundError(f"Wordlist not found at {path}")
-    with open(path, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f if line.strip()]
+def geenerate_stress_csvs_num_rows():
+    # Generate stress test CSV files for row count:
+    exponents = list(range(1, 8))  # Exponents from 1 to 8
+    for exp in exponents: 
+        i = 10 ** exp
+        with open(f"./dataframes/number_of_rows/example_rows_10^{exp}.csv", "w") as f:
+            for j in range(i):
+                for k in range(3):
+                    cell = str(random.randint(1, 1000))
+                    if k ==2:
+                        f.write(cell + "\n")
+                    else:
+                        f.write(cell + ",")
+        print(f'[✅] Generated stress test CSV file with 10^{exp} rows\n')
 
-def generate_headers(wordlist, num_headers):
-    return list(islice(cycle(wordlist), num_headers))
+def generate_stress_csvs_char_length(headers):
+    os.makedirs("./dataframes/row_character_size", exist_ok=True)
+    exponents = list(range(2, 9))  # Exponents from 2 to 8
+    for exp in exponents:
+        i = 10 ** exp
+        with open(f"./dataframes/row_character_size/example_row_length_{exp}.csv", "w") as f:
+            row = ""
+            for row_index in range(3): 
+                if row_index == 0:
+                    while len(row) < i:
+                        table_item = str(random.randint(0, 1000000))
+                        if (len(table_item) + len(row)) < i:
+                            row += str(table_item) + ","
+                        else:
+                            row += str(table_item[:(i - len(row))])
+                f.write(row + "\n")
 
-def generate_numeric_row(length, value=1):
-    return [str(value)] * length
+def generate_stress_csvs_single_value(headers):
+    exponents = list(range(1, 27))
 
-def write_csv(filename, headers, rows):
-    filepath = OUTPUT_DIR / filename
-    with open(filepath, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(headers)
-        writer.writerows(rows)
-    print(f"✅ Created {filepath}")
+    # Generate stress test CSV files for single values
+    for exp in exponents:
+        i = 10 ** exp
+        with open(f"./dataframes/single_values/example_single_value_10^{exp}.csv", "w") as f:
+            for j in range(10):
+                for k in range(10):
+                    if j == 0:
+                        # Write the headers
+                        if k != 9: 
+                            f.write(random.choice(headers) + ",")
+                        else:
+                            f.write(random.choice(headers) + "\n")
+                    else:
+                        if k != 9:
+                            f.write(str(random.randint(1, i)) + ",")
+                        else:
+                            f.write(str(random.randint(1, i)) + "\n")
+            print(f'[✅] Generated stress test CSV file with 10^{exp} single values\n')
 
-# === TEST CASES ===
-def generate_test_cases(wordlist):
-    test_index = START_INDEX
+def generate_stress_csvs_num_columns():
+    # Generate stress test CSV files for row width (columns per row):
+    exponents = list(range(1, 6))
 
-    def next_name(desc):
-        nonlocal test_index
-        name = f"example{test_index}_{desc}.csv"
-        test_index += 1
-        return name
+    for exp in exponents: # 1000000000, 10000000000, 100000000000, 1000000000000, 10000000000000
+        i = 10 ** exp
+        with open(f"./dataframes/number_of_columns/example_columns_{exp}.csv", "w") as f:
+            for j in range(2):
+                for k in range(i):
+                    if k == i - 1:
+                        f.write(str(1) + "\n")
+                    else: 
+                        f.write(str(1) + ",")  
 
-    # 1. Max single value length (digits only)
-    for length in [10, 1000, 100000, 1000000]:
-        headers = generate_headers(wordlist, 1)
-        long_number = "1" * length
-        write_csv(next_name(f"max_value_length_{length}"), headers, [[long_number]])
-
-    # 2. Max number of columns (all digits)
-    for cols in [10, 1000, 10000, 100000]:
-        headers = generate_headers(wordlist, cols)
-        row = generate_numeric_row(cols, 1)
-        write_csv(next_name(f"max_columns_{cols}"), headers, [row])
-
-    # 3. Max row total length (by character count)
-    for total_chars in [10000, 100000, 1000000]:
-        val = "1234567890"  # 10 digits
-        num_cols = total_chars // len(val)
-        headers = generate_headers(wordlist, num_cols)
-        row = [val] * num_cols
-        write_csv(next_name(f"max_row_chars_{total_chars}"), headers, [row])
-
-    # 4. Max number of rows
-    for num_rows in [100, 1000, 10000, 100000]:
-        headers = generate_headers(wordlist, 5)
-        row = generate_numeric_row(5, 7)
-        rows = [row for _ in range(num_rows)]
-        write_csv(next_name(f"max_rows_{num_rows}"), headers, rows)
-
-    # 5. Special "weird" values — now replaced with edge **numerical** values
-    specials = [
-        ([str(0), str(1), str(999999999)], "small_large_values"),
-        ([str(2**31 - 1), str(2**31 - 2), str(1)], "max_int_32bit"),
-        ([str(10**100)] * 3, "very_large_integers"),
-        (['0', '0', '0'], "zero_values"),
-        ([str(int("1" * 1000))] * 3, "1000_digit_values")
-    ]
-    for values, label in specials:
-        headers = generate_headers(wordlist, len(values))
-        write_csv(next_name(f"special_{label}"), headers, [values])
-
-    # 6. Combinations
-    headers = generate_headers(wordlist, 1000)
-    row = generate_numeric_row(1000, 42)
-    write_csv(next_name("combo_1000x1000"), headers, [row for _ in range(1000)])
-
-    headers = generate_headers(wordlist, 100)
-    long_value = "9" * 1000
-    write_csv(next_name("combo_100x1000char"), headers, [[long_value] * 100])
-
-    headers = generate_headers(wordlist, 100000)
-    row = generate_numeric_row(100000, 8)
-    write_csv(next_name("combo_100000_values_short"), headers, [row])
-
-# === MAIN ===
 if __name__ == "__main__":
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    wordlist = load_wordlist(WORDLIST_PATH)
-    generate_test_cases(wordlist)
+    # Ensure the directory exists
+    os.makedirs("./dataframes", exist_ok=True)
+
+     # Load headers from wordlist file
+    headers = []
+    with open("./dev_functionality/file_generation/wordlist.txt", "r") as f:
+        for line in f:
+            headers.append(line.strip())
+    print("Length of headers wordlist: " + str(len(headers)))
+
+    # generate_stress_csvs_single_value(headers)
+    # generate_stress_csvs_num_columns()
+    # generate_stress_csvs_char_length(headers)
+    geenerate_stress_csvs_num_rows()
+
+    print("[✅] Generated stress test CSV files in ./dataframes\n")
+
+# Generate stress test cases for 
 
 
+
+# 3. Row Length (Total Characters)
+# R1_row_length_10000.csv
+
+# R2_row_length_100000.csv
+
+# R3_row_length_1000000.csv
+
+# 4. Total Row Count
+# N1_100_rows.csv
+
+# N2_1000_rows.csv
+
+# N3_10000_rows.csv
+
+# N4_100000_rows.csv
+
+# N5_1000000_rows.csv
+
+# 5. Special / Edge Values
+# S1_quotes.csv
+
+# S2_commas.csv
+
+# S3_newlines.csv
+
+# S4_empty.csv
+
+# S5_mixed_weird.csv
 
 

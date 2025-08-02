@@ -67,5 +67,12 @@ docker run --rm -it -v "$(pwd)":/app fatdata-asan
 - Memory mapped operations
 - Vector API integration
 
+# Stress testing finite character buffers
+- Can handle just about any arbitrarily large singular number, say within 200 characters
+    - I got it to work on values with 26 digits, well beyond integer bounds
+- Python Ctypes plugin kills the process between 100 million and 10 million columns, with 2 rows
+- We crash at just about 1000000000 character width file
+- For number of rows we crash at just about 10^8 rows
+
 
 

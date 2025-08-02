@@ -72,6 +72,10 @@ void free_matrix(char **values, int values_size) {
     }
 }
 
+#define MAX_DISPLAY_WIDTH 120 // Adjust this threshold as needed
+#define MAX_ROWS_DISPLAY 20
+#define ELLIPSIS_ROW_INDEX -1
+
 void pretty_print_values(char **values, int values_size, int data_width) {
     if (data_width <= 0 || values_size <= 0) return;
     int num_rows = values_size / data_width;
@@ -87,44 +91,76 @@ void pretty_print_values(char **values, int values_size, int data_width) {
         }
     }
 
+    // Determine how many columns can fit within MAX_DISPLAY_WIDTH
+    int visible_cols = 0;
+    int total_width = 1; // initial for left border
+    for (int col = 0; col < data_width; col++) {
+        int col_total = col_widths[col] + 3; // padding and separator
+        if (total_width + col_total + 1 > MAX_DISPLAY_WIDTH) break;
+        total_width += col_total;
+        visible_cols++;
+    }
+
+    int truncated_cols = visible_cols < data_width;
+    int truncated_rows = num_rows > MAX_ROWS_DISPLAY;
+
     // Print top border
     printf("┌");
-    for (int col = 0; col < data_width; col++) {
+    for (int col = 0; col < visible_cols; col++) {
         for (int w = 0; w < col_widths[col] + 2; w++) printf("─");
-        if (col < data_width - 1) printf("┬");
+        printf(col < visible_cols - 1 ? "┬" : (truncated_cols ? "┬───┐\n" : "┐\n"));
     }
-    printf("┐\n");
 
-    // Print rows
-    for (int row = 0; row < num_rows; row++) {
-        printf("│");
-        for (int col = 0; col < data_width; col++) {
-            int idx = row * data_width + col;
-            printf(" %-*s │", col_widths[col], values[idx]);
-        }
-        printf("\n");
+    int rows_to_show = truncated_rows ? MAX_ROWS_DISPLAY : num_rows;
 
-        // Print separator
-        if (row < num_rows - 1) {
-            printf("├");
-            for (int col = 0; col < data_width; col++) {
-                for (int w = 0; w < col_widths[col] + 2; w++) printf("─");
-                if (col < data_width - 1) printf("┼");
+    for (int row = 0; row < rows_to_show; row++) {
+        int real_row = row;
+
+        if (truncated_rows && row == 10) {
+            // Print ellipsis row
+            printf("│");
+            for (int col = 0; col < visible_cols; col++) {
+                printf(" %-*s", col_widths[col], "...");
+                printf(" │");
             }
-            printf("┤\n");
+            if (truncated_cols) printf("...│\n");
+            else printf("\n");
+            continue;
+        }
+
+        if (truncated_rows && row >= 10) {
+            real_row = num_rows - (MAX_ROWS_DISPLAY - row);
+        }
+
+        printf("│");
+        for (int col = 0; col < visible_cols; col++) {
+            int idx = real_row * data_width + col;
+            printf(" %-*s", col_widths[col], values[idx]);
+            printf(" │");
+        }
+        if (truncated_cols) printf("...│\n");
+        else printf("\n");
+
+        // Separator row
+        if (row < rows_to_show - 1 && !(truncated_rows && row == 9)) {
+            printf("├");
+            for (int col = 0; col < visible_cols; col++) {
+                for (int w = 0; w < col_widths[col] + 2; w++) printf("─");
+                printf(col < visible_cols - 1 ? "┼" : (truncated_cols ? "┼───┤\n" : "┤\n"));
+            }
         }
     }
 
-    // Print bottom border
+    // Bottom border
     printf("└");
-    for (int col = 0; col < data_width; col++) {
+    for (int col = 0; col < visible_cols; col++) {
         for (int w = 0; w < col_widths[col] + 2; w++) printf("─");
-        if (col < data_width - 1) printf("┴");
+        printf(col < visible_cols - 1 ? "┴" : (truncated_cols ? "┴───┘\n" : "┘\n"));
     }
-    printf("┘\n");
 
     free(col_widths);
 }
+
 
 // OVERFLOW OPERATORS
 bool safe_size_t_increment(size_t *value) {
@@ -463,7 +499,7 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
     char **values = tokenize_file_contents(file_name, header_strings, &header_integers, 
                                           &data_width, &num_lines, &values_size);
     if (!values) {
-        fprintf(stderr, "Error opening and parsing file contents. (Void file contents)\n");
+        fprintf(stderr, "Error opening and parsing file contents.\n");
         
         // Free allocated memory for header strings
         free_header_strings(&header_strings);
@@ -694,15 +730,23 @@ __attribute__((visibility("default"))) int load_data(const char *file_name,
     // Pretty print the input data
     pretty_print_values(values, values_size, data_width);
 
+    // for (int i = 0; i < values_size; i++) {
+    //     if (values[i]) {
+    //         printf("Value %d: %s\n", i, values[i]);
+    //     } else {
+    //         printf("Value %d: NULL\n", i);
+    //     }
+    // }
+
     free_matrix(values, values_size);
 
-    // // Send out the operations on the subregion to be performed across threads
-    // int marshaller = marshall_operations(subregion, sub_height, sub_width, subregion_size, operations, thread_count);
-    // if (marshaller) {
-    //     fprintf(stderr, "Error: marshall_operations failed to compute operation (returned %d)\n", marshaller);
-    //     free_matrix(subregion, sub_height * sub_width);     
-    //     return 1;
-    // }
+    // Send out the operations on the subregion to be performed across threads
+    int marshaller = marshall_operations(subregion, sub_height, sub_width, subregion_size, operations, thread_count);
+    if (marshaller) {
+        fprintf(stderr, "Error: marshall_operations failed to compute operation (returned %d)\n", marshaller);
+        free_matrix(subregion, sub_height * sub_width);     
+        return 1;
+    }
 
     free_matrix(subregion, sub_height * sub_width);
  

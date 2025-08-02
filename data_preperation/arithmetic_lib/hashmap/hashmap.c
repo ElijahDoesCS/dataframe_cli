@@ -173,5 +173,9 @@ char *get_mode_key(hashmap_t *map) {
         fprintf(stderr, "Invalid hashmap\n");
         return NULL;
     }
+    if (map->mode == 1 || map->mode == 0) {
+        return "N/A"; // No mode or only one occurrence
+    }
+
     return map->mode_key; // Return the mode key
 }
