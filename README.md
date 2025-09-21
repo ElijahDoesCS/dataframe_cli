@@ -24,7 +24,7 @@ A fast(ish), minimalistic command-line interface for performing threaded statist
              │                    │
       ┌──────┴────────┐     ┌─────┴─────────┐
       │ Ctypes Plugin │     │ C hook driver │
-      └──────┬───────-┘     └──────┬────────┘
+      └──────┬────────┘     └──────┬────────┘
              │                     │
              └──────────┬──────────┘
                  ┌──────┴─────┐
