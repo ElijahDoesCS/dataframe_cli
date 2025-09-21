@@ -14,28 +14,28 @@ A fast(ish), minimalistic command-line interface for performing threaded statist
 - Easy Dockerized + Valgrind setup
     
 ## ⚙️ Architecture    
-                ┌─────────────-┐
+                ┌──────────────┐
                 │  User Input  │
-                └─────-┬────-─-┘
+                └──────┬───────┘
                   Bash Script 
              ┌─────────┴──────────┐
              │                    │
     CLI (Python Entry)     Input generation
              │                    │
-      ┌──────┴───────-┐     ┌─────┴──--─────┐
+      ┌──────┴────────┐     ┌─────┴─────────┐
       │ Ctypes Plugin │     │ C hook driver │
-      └──────┬───────-┘     └──────┬───-────┘
+      └──────┬───────-┘     └──────┬────────┘
              │                     │
-             └────------┬─--───-─--┘
-                 ┌─────-┴────-┐
+             └──────────┬──────────┘
+                 ┌──────┴─────┐
                  │ Matrix_lib │
-                 └─────-┬──-─-┘
-                 ┌─────-┴────-┐
+                 └──────┬─────┘
+                 ┌──────┴─────┐
                  │ Marshaller │
-                 └─────-┬──-─-┘
-                 ┌─────-┴────-┐
+                 └──────┬─────┘
+                 ┌──────┴─────┐
                  │  Fat_data  │
-                 └─────---─-─-┘
+                 └────────────┘
 
 ### Execution modes
 ##### The Bash script compiles and links the necesary binaries. 
